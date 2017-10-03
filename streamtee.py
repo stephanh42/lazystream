@@ -8,6 +8,10 @@ then iter2 stops referring to an object when iter1 would have done so.
 The fact that you `leak' a tee-ed stream here does not matter for memory use.
 """
 
+from functools import singledispatch
+import operator
+
+@singledispatch
 def _stream_from_iterator(iterator):
     result = (next(iterator), _stream_from_iterator(iterator))
     iterator = None
@@ -25,6 +29,8 @@ class _StreamIterator(object):
     def __iter__(self):
         return self
 
+_stream_from_iterator.register(_StreamIterator,
+        operator.attrgetter("stream"))
 
 def tee(iterable, n=2):
     stream = _stream_from_iterator(iter(iterable))
