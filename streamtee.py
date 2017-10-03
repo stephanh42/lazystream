@@ -11,7 +11,6 @@ The fact that you `leak' a tee-ed stream here does not matter for memory use.
 from functools import singledispatch
 import operator
 
-@singledispatch
 def _stream_from_iterator(iterator):
     result = (next(iterator), _stream_from_iterator(iterator))
     iterator = None
@@ -29,10 +28,25 @@ class _StreamIterator(object):
     def __iter__(self):
         return self
 
-_stream_from_iterator.register(_StreamIterator,
-        operator.attrgetter("stream"))
+    def peek(self):
+        """Look to the next item in the stream, without actually advancing to it.
+        May throw StopIteration at end-of-stream.
+        """
+        return next(self.stream)[0]
+
+    def duplicate(self):
+        """Create a duplicate of the current iterator, which has its 
+        own position in the underlying data stream.
+        """
+        return _StreamIterator(self.stream)
+
+
+@singledispatch
+def as_stream_iterator(iterable):
+    return _StreamIterator(_stream_from_iterator(iter(iterable)))
+
+as_stream_iterator.register(_StreamIterator, lambda x: x)
 
 def tee(iterable, n=2):
-    stream = _stream_from_iterator(iter(iterable))
-    return [_StreamIterator(stream) for i in range(n)]
-
+    stream_iter = as_stream_iterator(iterable)
+    return [stream_iter] + [stream_iter.duplicate() for i in range(n-1)]
