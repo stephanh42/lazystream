@@ -17,6 +17,12 @@ def _stream_from_iterator(iterator):
     while True:
         yield result
 
+def _flatten_stream_from_reversed_list(lst):
+    while lst:
+        yield from lst.pop()
+
+_empty_iterator = iter(())
+
 class _StreamIterator(object):
     def __init__(self, stream):
         self.stream = stream
@@ -40,6 +46,21 @@ class _StreamIterator(object):
         """
         return _StreamIterator(self.stream)
 
+    def bind(self, f):
+        """The callable f takes a single argument and
+        returns an iterator. Essentially we return
+        (y for x in self for y in f(x))
+        as a stream iterator.
+        """
+        return as_stream_iterator(y for x in self for y in f(x))
+
+    def concatenate(self, other):
+        """Concatenate another iterator to this iterator
+        and return the concatenated iterator.
+        The two input iterators should not be used anymore
+        and will be consumed by the combined iterator.
+        """
+        return as_stream_iterator(_flatten_stream_from_reversed_list([other, self]))
 
 @singledispatch
 def as_stream_iterator(iterable):
@@ -48,5 +69,9 @@ def as_stream_iterator(iterable):
 as_stream_iterator.register(_StreamIterator, lambda x: x)
 
 def tee(iterable, n=2):
+    if n <= 0:
+        return []
     stream_iter = as_stream_iterator(iterable)
     return [stream_iter] + [stream_iter.duplicate() for i in range(n-1)]
+
+empty = as_stream_iterator(())
